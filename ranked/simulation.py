@@ -1,9 +1,6 @@
-import json
 from collections import defaultdict
-from nis import match
-from typing import List
 
-from ranked.models import Batch, Match, Player, Ranker, Team
+from ranked.models import Batch, Match, Team
 
 
 class SaveEvolution:
@@ -16,7 +13,7 @@ class SaveEvolution:
         self.ranker = ranker.__class__.__name__
         self.pool = pool
 
-        name = fname.rsplit(".", maxsplit=1)[0]
+        fname.rsplit(".", maxsplit=1)[0]
         self.previous = dict()
 
     def __enter__(self):
@@ -30,7 +27,7 @@ class SaveEvolution:
         if not self.fs:
             return
 
-        self.fs.write(f"#match,pid,skill,cons,method,diff,win\n")
+        self.fs.write("#match,pid,skill,cons,method,diff,win\n")
 
     def save(self, iter, method, player_filter=None):
         if not self.fs:
@@ -66,7 +63,7 @@ class SaveEvolution:
 class Simulation:
     """Simulate ranking estimation evolution using simulated matches
 
-    On one side the matchmaker is working torwards making teams of equal strength
+    On one side the matchmaker is working towards making teams of equal strength
     while the Ranker is estimating the skill of each players from which the win
     probability of a given match can be deduced.
 
@@ -120,7 +117,7 @@ class Simulation:
 
     def benchmark(self, playerid=None):
         """Use the latest skill estimate for each player and estimate the win probabilities
-        for each matchup, if the Ranker estimated their skill corectly the precision should higher than 50%
+        for each matchup, if the Ranker estimated their skill correctly the precision should higher than 50%
         """
         acc = 0
         count = 0
@@ -161,7 +158,7 @@ class Simulation:
 
                 # average skill diff in this match
                 avg = avg / len(match.teams)
-                avg_diff = sum([abs(team.skill() - avg) for team in match.teams]) / len(
+                avg_diff = sum(abs(team.skill() - avg) for team in match.teams) / len(
                     match.teams
                 )
 
@@ -190,8 +187,8 @@ class Simulation:
 
         # Overall skill for every team should be even
         # regardless of their position inside the team array
-        avg = sum([v for _, v in team_skill.items()]) / len(team_skill)
-        avg_diff = sum([abs(v) - avg for _, v in team_skill.items()]) / len(team_skill)
+        avg = sum(v for _, v in team_skill.items()) / len(team_skill)
+        avg_diff = sum(abs(v) - avg for _, v in team_skill.items()) / len(team_skill)
 
         # Is the matchmaker biased toward a team
         # should be 0
@@ -235,7 +232,7 @@ def skill_estimate_evolution(dataframe, title=None):
 
     lines = points + highlight_lines
 
-    # put consitency at the bottom
+    # put consistency at the bottom
     x_ticks = (
         chart.mark_line()
         .encode(
@@ -322,7 +319,7 @@ def load_skill_evolution(filename):
     return data[data["pid"] >= n_players]
 
 
-def synthetic_main(n_matches_bootstrap=100, n_maches_newplayers=20, n_benchmark=100):
+def synthetic_main(n_matches_bootstrap=400, n_maches_newplayers=20, n_benchmark=200):
     """Simulates player and their skill estimate"""
     print("Synthetic Benchmark")
     print("===================")
@@ -330,6 +327,7 @@ def synthetic_main(n_matches_bootstrap=100, n_maches_newplayers=20, n_benchmark=
     from ranked.datasets.synthetic import SimulationConfig, create_simulated_matchups
     from ranked.models.glicko2 import Glicko2
     from ranked.models.noskill import NoSkill
+    from ranked.models.openskill import OpenSkill
 
     center = 1500
     var = 64
@@ -377,6 +375,8 @@ def synthetic_main(n_matches_bootstrap=100, n_maches_newplayers=20, n_benchmark=
         draw_probability=0,
     )
 
+    ranker = OpenSkill(mu=center, sigma=500 / 3, beta=beta, tau=0.2, initial_sigma=150)
+
     matchup = create_simulated_matchups(
         ranker,
         n_players,
@@ -395,8 +395,14 @@ def synthetic_main(n_matches_bootstrap=100, n_maches_newplayers=20, n_benchmark=
     # Benchmark
     print("2. Benchmark")
     matchup.n_matches = n_benchmark
-    for k, v in sim.benchmark().items():
-        print(f"{k:>30}: {v:.4f}")
+    repeat = 1
+    avg = defaultdict(int)
+    for _ in range(repeat):
+        for k, v in sim.benchmark().items():
+            avg[k] += v
+
+    for k, v in avg.items():
+        print(f"{k:>30}: {v / repeat:.4f}")
 
     # Check how new players are doing
     print("3. Add New Players")
@@ -418,8 +424,15 @@ def synthetic_main(n_matches_bootstrap=100, n_maches_newplayers=20, n_benchmark=
     # Benchmark
     print("4. New Player Benchmark")
     matchup.n_matches = n_benchmark
-    for k, v in sim.benchmark(n_players).items():
-        print(f"{k:>30}: {v:.4f}")
+    repeat = 1
+    avg = defaultdict(int)
+
+    for _ in range(repeat):
+        for k, v in sim.benchmark(n_players).items():
+            avg[k] += v
+
+    for k, v in avg.items():
+        print(f"{k:>30}: {v / repeat:.4f}")
 
     # Plot skill estimation trajectories
     print("4. Generate Graphs")
